@@ -463,7 +463,7 @@ class Codex:
     def _run(self, cmd, prompt, timeout, on_proc=None):
         """Run codex exec; yields ("thread", id) and ("text", message) events."""
         proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
-                                cwd=config.WORK, env=config.ENV, bufsize=1)
+                                cwd=config.WORK, env=config.ENV, bufsize=1, encoding="utf-8", errors="replace")
         if on_proc:
             on_proc(proc)
         proc.stdin.write(prompt)

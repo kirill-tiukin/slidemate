@@ -1,3 +1,18 @@
+# SlideMate with textbook citations
+
+This personal edition adds a textbook pane, clickable passage highlights, reading guides and multi-slide questions to [SlideMate](https://github.com/Mattlo0546/slidemate). The original MIT license and project history are included.
+
+## Install on Windows
+
+1. Sign in to GitHub and [download the Windows source ZIP](https://github.com/kirill-tiukin/slidemate/archive/refs/heads/main.zip). In File Explorer choose **Extract All**, then open the extracted folder.
+2. Double-click **Start SlideMate.cmd**. On the first run it uses Windows Package Manager (WinGet) to install missing Python, Poppler PDF tools and the OpenAI Codex CLI. If prompted, close the window and double-click the launcher again.
+3. Complete **Sign in with ChatGPT** in your browser using your Plus account. SlideMate opens in your default browser. Keep the launcher window open while studying.
+4. Drop a lecture PDF into SlideMate. Use **Book → Choose PDF** for your textbook, then **Select slides → Apply → Explain + book**.
+
+The Windows edition uses a local browser window and stores settings, chats and cached book text in `%LOCALAPPDATA%\SlideMate`. Bring your own PDFs to the PC. AirDrop, the native Mac window and Apple Silicon lecture transcription are macOS features. If Windows cannot find `winget`, install or update **App Installer** from the Microsoft Store, then reopen the launcher.
+
+## Original macOS project
+
 <p align="center">
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="docs/media/hero-v3-dark.svg">
@@ -237,7 +252,7 @@ Yes. The ask box suggests questions for each slide, follow-ups after each answer
 Cards use the lecture slides, available notes, exam hints and your tutor questions. After a revision conversation goes quiet, SlideMate can add cards about what you asked. Review in the app with FSRS or export Anki-compatible text. Generated cards remain editable.
 
 ### Is there an iPad, Windows or Linux version?
-The app runs on macOS 13+. iPad is a destination for slides and snips; there is no standalone SlideMate iPad app in this repository. Windows and Linux are not currently supported.
+The app runs on macOS 13+. iPad is a destination for slides and snips; there is no standalone SlideMate iPad app in this repository. This personal edition also provides the Windows browser launcher described above.
 
 ## Build, explore, contribute
 

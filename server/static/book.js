@@ -84,7 +84,7 @@ async function loadDocument(path) {
   if (token !== book.token) { doc.destroy(); return; }
   book.pdf = doc;
   $('#bookNav').hidden = false;
-  $('#bookTitle').textContent = path.split('/').pop().replace(/\.pdf$/i, '');
+  $('#bookTitle').textContent = path.split(/[\\/]/).pop().replace(/\.pdf$/i, '');
   $('#bookTitle').title = $('#bookTitle').textContent;
   $('#bookTotal').textContent = doc.numPages;
   $('#bookPage').max = doc.numPages;

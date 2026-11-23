@@ -1,0 +1,33 @@
+name: Windows study app
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run retrieval and HTTP tests
+        run: python -m unittest discover -s tests
+      - name: Launch Windows edition and check study UI
+        shell: pwsh
+        run: |
+          $env:SLIDEMATE_DATA = Join-Path $env:RUNNER_TEMP 'slidemate-test'
+          $env:SLIDEMATE_PORT = '8799'
+          $p = Start-Process python -ArgumentList 'scripts/windows_start.py' -PassThru
+          try {
+            for ($i = 0; $i -lt 30; $i++) {
+              if ($p.HasExited) { throw 'SlideMate exited before serving the UI' }
+              try { $health = Invoke-RestMethod http://127.0.0.1:8799/api/health; break } catch { Start-Sleep 1 }
+            }
+            if ($health.app -ne 'slidemate') { throw 'Server did not start' }
+            $status = Invoke-RestMethod http://127.0.0.1:8799/api/book -Headers @{'X-SlideMate'='1'}
+            if ($status.pages -ne 0) { throw 'Unexpected book state' }
+            $ui = (Invoke-WebRequest http://127.0.0.1:8799/).Content
+            if (!$ui.Contains('id="slidePicker"') -or !$ui.Contains('id="bookViewer"')) { throw 'Study controls missing' }
+          } finally { if (!$p.HasExited) { Stop-Process -Id $p.Id } }

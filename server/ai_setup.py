@@ -12,7 +12,8 @@ The job finishes when the provider's own status check says it's signed in.
 import json
 import os
 import platform
-import pty
+if os.name != "nt":
+    import pty
 import re
 import select
 import shutil
@@ -105,6 +106,18 @@ def _run(name, job):
     step = lambda s: job.update(step=s)  # noqa: E731
     label = PROVIDER_LABELS.get(name, name)
     try:
+        if os.name == "nt":
+            if name != "codex" or not providers.PROVIDERS[name].bin():
+                raise RuntimeError("For ChatGPT on Windows, run Start SlideMate.cmd first.")
+            if not _ready(name):
+                job.update(state="signing_in", step="Complete ChatGPT sign-in in the new window.")
+                proc = subprocess.Popen([providers.PROVIDERS[name].bin(), "login"],
+                                        creationflags=subprocess.CREATE_NEW_CONSOLE)
+                job["proc"] = proc
+                if proc.wait(timeout=SIGN_IN_TIMEOUT) or not _ready(name):
+                    raise RuntimeError("ChatGPT sign-in did not complete.")
+            job.update(state="done", step="Ready")
+            return
         if not providers.PROVIDERS[name].bin():
             step(f"Installing {label}…")
             _install(name, step)

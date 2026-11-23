@@ -226,8 +226,22 @@ def helper_trust(prompt=False):
     return False
 
 
+def windows_picker(folder=False):
+    dialog = ("$d = New-Object System.Windows.Forms.FolderBrowserDialog; $d.Description = 'Choose your course folder'"
+              if folder else "$d = New-Object System.Windows.Forms.OpenFileDialog; $d.Filter = 'PDF files (*.pdf)|*.pdf'")
+    selected = "$d.SelectedPath" if folder else "$d.FileName"
+    script = ("Add-Type -AssemblyName System.Windows.Forms; [Console]::OutputEncoding = "
+              "New-Object System.Text.UTF8Encoding($false); " + dialog +
+              "; if ($d.ShowDialog() -eq 'OK') { [Console]::Write(" + selected + ") }; $d.Dispose()")
+    result = subprocess.run(["powershell.exe", "-NoProfile", "-STA", "-Command", script],
+                            capture_output=True, encoding="utf-8", errors="replace", timeout=600)
+    return result.stdout.strip() or None
+
+
 def pick_folder():
     """Native folder picker (works whether the UI runs in the Mac app or a browser)."""
+    if os.name == "nt":
+        return windows_picker(folder=True)
     script = 'POSIX path of (choose folder with prompt "Choose the folder that holds your course folders")'
     p = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=600)
     return p.stdout.strip().rstrip("/") or None
@@ -235,6 +249,8 @@ def pick_folder():
 
 def pick_pdf():
     """Native file picker for the textbook PDF."""
+    if os.name == "nt":
+        return windows_picker()
     script = 'POSIX path of (choose file of type {"pdf"} with prompt "Choose the textbook PDF")'
     try:
         p = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=600)
@@ -878,7 +894,7 @@ def shutdown(*_):
     os._exit(0)
 
 
-def main():
+def main(open_browser=False):
     import signal
     signal.signal(signal.SIGTERM, shutdown)
     signal.signal(signal.SIGINT, shutdown)
@@ -888,15 +904,19 @@ def main():
     lecture.ON_NOTES_DONE.append(flashcards.on_notes_done)
     threading.Timer(5, lecture.resume_unfinished).start()  # pick up lectures interrupted by a quit or crash
     threading.Timer(20, flashcards.catch_up).start()  # and flashcards that weren't made because the app quit
-    threading.Timer(15, tools.auto).start()  # and lecture recording, if setup finished but it isn't installed yet
-    threading.Timer(25, tools.update_connections).start()  # and Moodle/Blackboard, when this version pins a newer one
-    threading.Thread(target=lecture.watch_recordings, daemon=True).start()  # and recordings whose page went away
+    if os.name != "nt":
+        threading.Timer(15, tools.auto).start()  # and lecture recording, if setup finished but it isn't installed yet
+        threading.Timer(25, tools.update_connections).start()  # and Moodle/Blackboard, when this version pins a newer one
+        threading.Thread(target=lecture.watch_recordings, daemon=True).start()  # and recordings whose page went away
     try:
         mcp.repair_sync()  # a Pull set to a tool that can't sync (e.g. picked by accident) → one that can
     except Exception as e:
         print("repair_sync", e, flush=True)
     srv = ThreadingHTTPServer(("127.0.0.1", config.PORT), Handler)
     srv.daemon_threads = True
+    if open_browser:
+        import webbrowser
+        webbrowser.open(f"http://127.0.0.1:{config.PORT}")
     print(f"SlideMate running on http://127.0.0.1:{config.PORT}  (data: {config.DATA})", flush=True)
     try:
         srv.serve_forever()

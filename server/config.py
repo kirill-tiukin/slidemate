@@ -7,7 +7,9 @@ from pathlib import Path
 HOME = Path.home()
 APP_DIR = Path(__file__).resolve().parent
 STATIC = APP_DIR / "static"
-DATA = Path(os.environ.get("SLIDEMATE_DATA") or HOME / "Library" / "Application Support" / "SlideMate")
+DEFAULT_DATA = (Path(os.environ.get("LOCALAPPDATA") or HOME / "AppData" / "Local") / "SlideMate"
+                if os.name == "nt" else HOME / "Library" / "Application Support" / "SlideMate")
+DATA = Path(os.environ.get("SLIDEMATE_DATA") or DEFAULT_DATA)
 PORT = int(os.environ.get("SLIDEMATE_PORT") or 8767)
 CONFIG_PATH = DATA / "config.json"
 WORK = DATA / "work"          # scratch dir the AI CLIs run in (never your files)
@@ -24,7 +26,9 @@ for d in (DATA, WORK, CHATS, LECTURES, CHAT_IMAGES):
 TOOLS = DATA / "tools"  # what SlideMate installs for itself (server/tools.py): Parakeet, ffmpeg, university connections
 EXTRA_PATH = [str(TOOLS / "bin"), str(HOME / ".local/bin"), str(HOME / ".grok/bin"), "/opt/homebrew/bin", "/usr/local/bin", str(HOME / ".npm-global/bin"),
               str(HOME / ".bun/bin"), "/usr/bin", "/bin", "/usr/sbin", "/sbin"]
-ENV = {**os.environ, "PATH": ":".join(EXTRA_PATH + os.environ.get("PATH", "").split(":"))}
+if os.name == "nt":
+    EXTRA_PATH = [str(TOOLS / "bin")]
+ENV = {**os.environ, "PATH": os.pathsep.join(EXTRA_PATH + os.get_exec_path())}
 
 
 def which(name):

@@ -10,6 +10,8 @@
 <body>
 <svg width="0" height="0" style="position:absolute">
   <defs>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5Z"/><path d="M4 20.5A2.5 2.5 0 0 0 6.5 23H20v-5M9 8h7"/></symbol>
+    <symbol id="i-swap" viewBox="0 0 24 24"><path d="M7 4 3 8l4 4M3 8h14M17 12l4 4-4 4M21 16H7"/></symbol>
     <symbol id="i-sidebar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M9 4v16"/></symbol>
     <symbol id="i-left" viewBox="0 0 24 24"><path d="m15 18-6-6 6-6"/></symbol>
     <symbol id="i-right" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
@@ -95,6 +97,7 @@
         <button id="btnSnip" class="ghost" title="Snip an area (X)"><svg><use href="#i-scissors"/></svg><span>Snip</span></button>
         <button id="btnSend" class="primary" title="Send current slide to iPad (S)"><svg><use href="#i-send"/></svg><span>Send to iPad</span></button>
       </div>
+      <button id="btnBook" class="ghost icon" aria-label="Textbook" aria-controls="book" aria-expanded="false" title="Textbook beside the slides (B)"><svg><use href="#i-book"/></svg></button>
       <button id="btnChat" class="ghost icon" title="Tutor panel (T)"><svg><use href="#i-chat"/></svg></button>
       <button id="btnSettings" class="ghost icon" title="Settings"><svg><use href="#i-gear"/></svg></button>
     </header>
@@ -123,6 +126,42 @@
     </section>
   </section>
 
+  <aside id="book" aria-label="Textbook">
+    <div id="bookGrip" title="Drag to resize · double-click to reset"></div>
+    <div id="bookHead">
+      <span id="bookTitle">Textbook</span>
+      <span id="bookNav" class="pill" hidden>
+        <button id="bookPrev" class="ghost icon" title="Previous page"><svg><use href="#i-left"/></svg></button>
+        <input id="bookPage" type="number" min="1" inputmode="numeric" aria-label="Book page">
+        <span class="of">/ <span id="bookTotal"></span></span>
+        <button id="bookNext" class="ghost icon" title="Next page"><svg><use href="#i-right"/></svg></button>
+      </span>
+      <button id="bookClose" class="ghost icon" title="Hide textbook (B)"><svg><use href="#i-x"/></svg></button>
+    </div>
+    <div id="bookBar">
+      <div class="seg" id="bookSideSeg" role="group" aria-label="Textbook position">
+        <button id="bookSideL" data-side="left" title="Put the textbook on the left of the slides">Left</button>
+        <button id="bookSideR" data-side="right" title="Put the textbook on the right of the slides">Right</button>
+      </div>
+      <button id="bookPick" class="small ghost" title="Choose a different textbook PDF"><svg><use href="#i-folder"/></svg>Change book</button>
+      <button id="bookRemove" class="ghost icon" aria-label="Remove textbook" title="Remove the textbook"><svg><use href="#i-trash"/></svg></button>
+    </div>
+    <p id="bookHint" role="status"></p>
+    <div id="bookGuide" hidden>
+      <span id="bookRange"></span>
+      <button id="bookKeyPrev" class="ghost icon" title="Previous key passage"><svg><use href="#i-left"/></svg></button>
+      <span id="bookKeyCount" aria-live="polite"></span>
+      <button id="bookKeyNext" class="ghost icon" title="Next key passage"><svg><use href="#i-right"/></svg></button>
+    </div>
+    <p id="bookSourceHint" role="status"></p>
+    <div id="bookViewer"></div>
+    <div id="bookEmpty">
+      <h2>Add your textbook</h2>
+      <p>Choose a PDF to read beside your slides. Click a book citation in chat to open its page.</p>
+      <button id="bookPickEmpty" class="primary">Choose PDF…</button>
+    </div>
+  </aside>
+
   <aside id="chat">
     <div class="resizer" data-panel="chat" title="Drag to resize · double-click to reset"></div>
     <div id="chatSnipLayer" hidden></div>
@@ -150,8 +189,18 @@
     <div id="cardsPane" hidden></div>
     <div id="messages"></div>
     <div id="composer">
+      <details id="slidePicker" hidden>
+        <summary>Select slides</summary>
+        <form id="slideSelectionForm">
+          <label for="slideSelectionInput">Slides to study together</label>
+          <input id="slideSelectionInput" placeholder="e.g. 46–50, 55" autocomplete="off">
+          <div id="slideChoices" role="group" aria-label="Slide numbers"></div>
+          <div class="selection-actions"><button type="button" id="clearSelection" class="ghost small">Clear</button><button class="primary small" type="submit">Apply</button></div>
+        </form>
+      </details>
       <div id="chips">
         <button data-q="Explain this slide.">Explain</button>
+        <button data-q="Explain this slide, then back it up from the textbook: for each key point say what the book says and where, and flag anything on the slide the book doesn't cover or contradicts." data-book-chip title="Explain this slide and check it against the textbook">Explain + book</button>
         <button data-q="Explain this slide more simply, like I'm new to the topic.">Simpler</button>
         <button data-q="Give me a concrete worked example of what this slide is about.">Example</button>
         <button data-q="How does this slide connect to the earlier and later slides? What's the big picture?">Big picture</button>

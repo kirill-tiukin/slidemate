@@ -8,6 +8,7 @@ import base64
 import hashlib
 import json
 import os
+import shutil
 import re
 import subprocess
 import tempfile
@@ -20,6 +21,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 import ai_setup
+import book
 import config
 import flashcards
 import lecture
@@ -231,6 +233,16 @@ def pick_folder():
     return p.stdout.strip().rstrip("/") or None
 
 
+def pick_pdf():
+    """Native file picker for the textbook PDF."""
+    script = 'POSIX path of (choose file of type {"pdf"} with prompt "Choose the textbook PDF")'
+    try:
+        p = subprocess.run(["osascript", "-e", script], capture_output=True, text=True, timeout=600)
+    except Exception:
+        return None
+    return p.stdout.strip() or None
+
+
 def status(only=None):
     """Setup status. `only` (provider names) limits the checks, which run CLIs and some go over the network."""
     cfg = config.load()
@@ -328,6 +340,8 @@ class Handler(BaseHTTPRequestHandler):
                                    "sync": lib.sync_state(), "categories": lib.CATEGORIES,
                                    "paths": {"roots": [str(r) for r in config.roots()], "inbox": str(ib) if ib else "",
                                              "data": str(config.DATA), "snaps": str(config.SNAPS)}})
+            if u.path == "/api/book":
+                return self._json(book.status())
             if u.path == "/api/config":
                 return self._json(config.public())
             if u.path == "/api/mcp/discover":
@@ -408,14 +422,14 @@ class Handler(BaseHTTPRequestHandler):
         self._file(f, MIME.get(f.suffix, "application/octet-stream"), cache=False)
 
     def _file(self, f, ctype, cache=True):
-        data = f.read_bytes()
-        self.send_response(200)
-        self.send_header("Content-Type", ctype)
-        self.send_header("Content-Length", str(len(data)))
-        if not cache:
-            self.send_header("Cache-Control", "no-cache")
-        self.end_headers()
-        self.wfile.write(data)
+        with f.open("rb") as source:
+            self.send_response(200)
+            self.send_header("Content-Type", ctype)
+            self.send_header("Content-Length", str(os.fstat(source.fileno()).st_size))
+            if not cache:
+                self.send_header("Cache-Control", "no-cache")
+            self.end_headers()
+            shutil.copyfileobj(source, self.wfile, length=64 * 1024)
 
     def _audio(self, f):
         if not f.exists():
@@ -460,8 +474,30 @@ class Handler(BaseHTTPRequestHandler):
             q = urllib.parse.parse_qs(u.query)
             ok = lecture.add_chunk(q["id"][0], int(q["seq"][0]), self._body())
             return self._json({"ok": ok}, 200 if ok else 409)
-        body = json.loads(self._body() or b"{}")
+        try:
+            body = json.loads(self._body() or b"{}")
+            if not isinstance(body, dict):
+                raise ValueError
+        except (ValueError, UnicodeError):
+            return self._json({"error": "Expected a JSON object."}, 400)
         p = u.path
+        if p in ("/api/book/set", "/api/book/pick"):
+            if p == "/api/book/pick":
+                path = pick_pdf()
+                if not path:
+                    return self._json({"path": ""})
+            else:
+                path = body.get("path")
+                if not isinstance(path, str) or not path.strip():
+                    return self._json({"error": "Choose a PDF file."}, 400)
+                path = os.path.abspath(os.path.expanduser(path))
+            if not book.load_pages(path):
+                return self._json({"error": "That isn't a readable PDF."}, 400)
+            config.update({"book_path": path})
+            return self._json(book.status())
+        if p == "/api/book/clear":
+            config.update({"book_path": ""})
+            return self._json(book.status())
         if p == "/api/chat":
             return self._chat(body)
         if p == "/api/cards/ask":
@@ -652,6 +688,22 @@ class Handler(BaseHTTPRequestHandler):
         path = body.get("path", "")
         if not os.path.isfile(path):
             return self._json({"error": "no pdf"}, 400)
+        selected = body.get("slides", [])
+        if not isinstance(selected, list) or any(type(n) is not int or n < 1 for n in selected):
+            return self._json({"error": "Invalid slide selection."}, 400)
+        selected = sorted(set(selected))
+        selected_text = None
+        scope = {}
+        if selected:
+            pages = book.load_pages(path)
+            total = len(pages) or providers.page_count(path)
+            if selected[-1] > total:
+                return self._json({"error": "Selected slide is outside this deck."}, 400)
+            per_slide = max(1, 24000 // len(selected))
+            selected_text = "\n\n".join(
+                f"Slide {n}: " + ((pages[n - 1][:per_slide] if pages else "") or "(no extractable text)")
+                for n in selected)
+            scope = {"slides": selected}
         sess = get_session(path)
         img = body.get("image") or ""
         img = img.split(",", 1)[1] if "," in img else img
@@ -664,6 +716,11 @@ class Handler(BaseHTTPRequestHandler):
         self.close_connection = True
         question, page = body.get("question", "Explain this slide."), body.get("page", 1)
         user_msg = {"role": "user", "text": body.get("display") or question, "slide": page, "ts": time.time(), "snip": bool(body.get("snip"))}
+        if selected:
+            user_msg.update(scope)
+            question = ("Study these selected slides together. Connect their ideas and identify which slide "
+                        "supports each step. Interpret references to 'this slide' as this selection.\n\n"
+                        + selected_text + "\n\n" + question)
         if attachments:
             user_msg["images"] = [save_chat_image(t, b) for t, b in attachments]
         answer, gone = [], False
@@ -678,6 +735,12 @@ class Handler(BaseHTTPRequestHandler):
         here = lecture.slide_notes(path, page)
         if here:
             question = f"{here}\n\n---\n\n{question}"
+        book_path = config.load().get("book_path") or ""
+        excerpts = book.context_for(book_path, path, page, body.get("question", ""), k=4, selected_text=selected_text) if book_path else ""
+        if book_path:
+            excerpts = excerpts or ("No textbook excerpts are available for this question. "
+                                    "If asked to verify the slide, say so and omit book citations.")
+            question = f"{excerpts}\n\n---\n\n{question}"
         for chunk in sess.ask(question, page, body.get("total", 1), img, tutor_context(path), attachments):
             if isinstance(chunk, tuple):  # ("status", "Using blackboard › …") / ("usage", {...}): live only, not saved
                 if chunk[0] == "usage":
@@ -696,7 +759,7 @@ class Handler(BaseHTTPRequestHandler):
         text = "".join(answer)
         if getattr(sess, "cancelled", False):
             text = (text.rstrip() + "\n\n_(stopped)_") if text.strip() else "_Stopped before answering._"
-        lib.append_chat(path, user_msg, {"role": "bot", "text": text, "slide": page, "ts": time.time()})
+        lib.append_chat(path, user_msg, {**scope, "role": "bot", "text": text, "slide": page, "ts": time.time()})
         if not gone:
             try:
                 self.wfile.write(b"event: done\ndata: {}\n\n")

@@ -1,5 +1,6 @@
 import * as pdfjsLib from './vendor/pdfjs/pdf.min.mjs';
 pdfjsLib.GlobalWorkerOptions.workerSrc = './vendor/pdfjs/pdf.worker.min.mjs';
+import { initBook, linkBook, showBookCitation } from './book.js';
 
 const $ = (s) => document.querySelector(s);
 const H = { 'X-SlideMate': '1' };
@@ -332,11 +333,82 @@ $('#btnPull').onclick = () => startSync(false);
 const viewer = $('#viewer');
 let observer = null;
 
+let selectedSlides = [];
+function slideList(numbers) {
+  const ranges = [];
+  for (let i = 0; i < numbers.length; i++) {
+    const start = numbers[i];
+    while (numbers[i + 1] === numbers[i] + 1) i++;
+    ranges.push(start === numbers[i] ? String(start) : start + '–' + numbers[i]);
+  }
+  return ranges.join(', ');
+}
+
+function readSelection() {
+  const input = $('#slideSelectionInput');
+  const values = new Set();
+  input.setCustomValidity('');
+  for (const part of input.value.trim() ? input.value.split(',') : []) {
+    const match = /^\s*(\d+)(?:\s*[-–—]\s*(\d+))?\s*$/.exec(part);
+    const start = Number(match?.[1]), end = Number(match?.[2] || start);
+    if (!match || start < 1 || end < start || end > state.pdf.numPages) {
+      input.setCustomValidity('Enter slide numbers from 1 to ' + state.pdf.numPages + ', for example 2–4, 7.');
+      return null;
+    }
+    for (let n = start; n <= end; n++) values.add(n);
+  }
+  return [...values].sort((a, b) => a - b);
+}
+
+function refreshChoices() {
+  const values = new Set(readSelection() || []);
+  for (const button of $('#slideChoices').children) button.setAttribute('aria-pressed', String(values.has(+button.value)));
+}
+
+function applySelection(values) {
+  selectedSlides = values;
+  $('#slidePicker summary').textContent = values.length ? 'Selected slides: ' + slideList(values) : 'Select slides';
+  $('#askInput').placeholder = values.length ? 'Ask about the selected slides' : 'Ask about this slide';
+  $('#slidePicker').open = false;
+}
+
+$('#slidePicker summary').addEventListener('click', e => {
+  e.preventDefault();
+  const picker = $('#slidePicker');
+  picker.open = !picker.open;
+  if (!picker.open || !state.pdf) return;
+  $('#slideSelectionInput').value = slideList(selectedSlides);
+  $('#slideChoices').innerHTML = Array.from({ length: state.pdf.numPages }, (_, i) =>
+    '<button type="button" value="' + (i + 1) + '">' + (i + 1) + '</button>').join('');
+  refreshChoices();
+  $('#slideSelectionInput').focus();
+});
+$('#slideSelectionInput').oninput = refreshChoices;
+$('#slideChoices').onclick = e => {
+  const button = e.target.closest('button');
+  if (!button) return;
+  const values = readSelection();
+  if (!values) return $('#slideSelectionInput').reportValidity();
+  const n = +button.value;
+  const next = values.includes(n) ? values.filter(v => v !== n) : [...values, n].sort((a, b) => a - b);
+  $('#slideSelectionInput').value = slideList(next);
+  refreshChoices();
+};
+$('#slideSelectionForm').onsubmit = e => {
+  e.preventDefault();
+  const values = readSelection();
+  if (values) applySelection(values);
+  else $('#slideSelectionInput').reportValidity();
+};
+$('#clearSelection').onclick = () => applySelection([]);
+
 async function openPdf(path, page) {
   try {
     const doc = await pdfjsLib.getDocument({ url: '/api/pdf?path=' + encodeURIComponent(path), httpHeaders: H }).promise;
     if (state.pdf) state.pdf.destroy();
+    if (state.path !== path) applySelection([]);
     state.pdf = doc; state.path = path;
+    $('#slidePicker').hidden = false;
     find.reset(); $('#findBar').hidden = true;
     const item = lib.items.find((i) => i.path === path);
     state.name = item?.title || path.split('/').pop().replace(/\.pdf$/i, '');
@@ -750,7 +822,7 @@ function mdRender(text, links = true) {
     const { tex, display } = math[+i];
     try { return katex.renderToString(tex, { displayMode: display, throwOnError: false }); } catch { return esc(tex); }
   });
-  return links ? linkSlides(html) : html;
+  return links ? linkBook(linkSlides(html)) : html;
 }
 
 // -------------------------------------------------------------------------------------
@@ -1003,7 +1075,7 @@ function renderChat() {
   box.innerHTML = '';
   if (!state.path) return;
   const all = chatFor(state.path);
-  const msgs = state.chatMode === 'slide' ? all.filter((m) => m.slide === state.current) : all;
+  const msgs = state.chatMode === 'slide' ? all.filter((m) => m.slide === state.current || m.slides?.includes(state.current)) : all;
   if (!msgs.length) {
     const others = all.filter((m) => m.role === 'user').length;
     box.innerHTML = `<div class="empty-chat"><b>${state.chatMode === 'slide' ? `Nothing asked on slide ${state.current} yet` : 'No questions on this deck yet'}</b>
@@ -1026,7 +1098,7 @@ function msgEl(m) {
   m._el = d;
   d.className = 'msg ' + m.role;
   if (m.role === 'user') {
-    d.innerHTML = `<button class="slide-tag" data-goto="${m.slide}">Slide ${m.slide}${m.snip ? ' · snip' : ''}</button><div class="q"></div>`;
+    d.innerHTML = `<button class="slide-tag" data-goto="${m.slide}">${m.slides?.length ? 'Slides ' + esc(slideList(m.slides)) : 'Slide ' + m.slide}${m.snip ? ' · snip' : ''}</button><div class="q"></div>`;
     d.querySelector('.q').textContent = m.text;
     if (m.image) { const i = new Image(); i.src = m.image; d.append(i); }
     if (m.images?.length) {
@@ -1166,6 +1238,7 @@ async function stopAnswer() {
 async function askInner(question) {
   showChat();
   const path = state.path, total = state.pdf.numPages;
+  const slides = [...selectedSlides];
   const snipNow = pendingSnip;
   const picsNow = pendingPics;
   pendingSnip = null;
@@ -1173,13 +1246,13 @@ async function askInner(question) {
   renderTray();
   await Promise.all(picsNow.map((p) => p.ready));
   const attachments = picsNow.filter((p) => p.url).map((p) => p.url);
-  const page = snipNow?.page || state.current;
+  const page = snipNow?.page || (slides.length && !slides.includes(state.current) ? slides[0] : state.current);
   const image = snipNow ? snipNow.img : await renderImage(page, { width: 1400, type: 'image/jpeg', quality: 0.85 });
   const fullQ = snipNow ? `(The attached image is a snipped area of slide ${page}, not the whole slide.)\n\n${question}` : question;
   if (state.chatMode === 'slide' && page !== state.current) setChatMode('all');
   const msgs = chatFor(path);
-  msgs.push({ role: 'user', text: question, slide: page, ts: Date.now() / 1000, snip: !!snipNow, image: snipNow?.img, images: attachments });
-  const bot = { role: 'bot', text: '', slide: page, ts: Date.now() / 1000 };
+  msgs.push({ role: 'user', text: question, slide: page, slides, ts: Date.now() / 1000, snip: !!snipNow, image: snipNow?.img, images: attachments });
+  const bot = { role: 'bot', text: '', slide: page, slides, ts: Date.now() / 1000 };
   msgs.push(bot);
   renderChat();
   markChattedSlides();
@@ -1191,7 +1264,7 @@ async function askInner(question) {
   }, 1000);
   state.stopping = false;
   try {
-    const res = await api('/api/chat', { method: 'POST', signal: state.abort?.signal, body: JSON.stringify({ path, page, total, question: fullQ, display: question, snip: !!snipNow, image, attachments }) });
+    const res = await api('/api/chat', { method: 'POST', signal: state.abort?.signal, body: JSON.stringify({ path, page, total, slides, question: fullQ, display: question, snip: !!snipNow, image, attachments }) });
     const reader = res.body.getReader();
     const dec = new TextDecoder();
     let buf = '', raf = 0;
@@ -1224,6 +1297,10 @@ async function askInner(question) {
       }
     }
     paint();
+    if (!state.stopping && state.path === path && bot._el?.isConnected && document.body.classList.contains('book-open')) {
+      const source = bot._el.querySelector('a.book-ref');
+      if (source) showBookCitation(source);
+    }
     const item = lib.items.find((x) => x.path === path);
     if (item && !item.hasChat) { item.hasChat = true; renderLibrary(); }
     if (!state.stopping && bot.text.trim()) fetchFollowups(path, page);  // what to ask next (grey in the ask box)
@@ -2326,6 +2403,8 @@ window.addEventListener('keydown', (e) => {
   else if (k === '+' || k === '=') $('#btnZoomIn').click();
   else if (k === '-') $('#btnZoomOut').click();
 });
+
+initBook();
 
 let dragDepth = 0;
 function dropMessage(dt) {

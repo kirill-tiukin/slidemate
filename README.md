@@ -2,9 +2,24 @@
 
 This personal edition adds a textbook pane, clickable passage highlights, reading guides and multi-slide questions to [SlideMate](https://github.com/Mattlo0546/slidemate). The original MIT license and project history are included.
 
-## Install on Windows
+## Set up this edition
 
-1. Sign in to GitHub and [download the Windows source ZIP](https://github.com/kirill-tiukin/slidemate/archive/refs/heads/main.zip). In File Explorer choose **Extract All**, then open the extracted folder.
+Open the [copy-and-paste setup prompt](setup/INSTALL-PROMPT.txt), copy the whole file, and paste it into an assistant on the computer where you want to study. The same prompt covers macOS and Windows. If you received the study kit by email, extract it first and give the assistant the location of that folder.
+
+### Install on macOS
+
+On macOS 13 or later, install the Xcode Command Line Tools and Homebrew. [Download this edition](https://github.com/kirill-tiukin/slidemate/archive/refs/heads/main.zip), extract it, and open Terminal in the extracted project folder. Run:
+
+```sh
+bash scripts/install.sh --build-only
+open "$PWD/build/SlideMate.app"
+```
+
+Quit any other running copy before opening the newly built app. Choose **ChatGPT (Codex)** in setup or Settings. Keep the project folder so you can reopen the same app from its `build` folder.
+
+### Install on Windows
+
+1. [Download the Windows source ZIP](https://github.com/kirill-tiukin/slidemate/archive/refs/heads/main.zip). In File Explorer choose **Extract All**, then open the extracted folder.
 2. Double-click **Start SlideMate.cmd**. On the first run it uses Windows Package Manager (WinGet) to install missing Python, Poppler PDF tools and the OpenAI Codex CLI. If prompted, close the window and double-click the launcher again.
 3. Complete **Sign in with ChatGPT** in your browser using your Plus account. SlideMate opens in your default browser. Keep the launcher window open while studying.
 4. Drop a lecture PDF into SlideMate. Use **Book → Choose PDF** for your textbook, then **Select slides → Apply → Explain + book**.

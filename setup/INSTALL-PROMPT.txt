@@ -1,0 +1,20 @@
+Please install SlideMate on this computer and set it up for studying. Use Kirill's edition at https://github.com/kirill-tiukin/slidemate. It includes the textbook pane and multi-slide selection. Detect whether this computer runs macOS or Windows, then follow the matching instructions below. If you can operate the local computer, carry out the setup and verify it. If you are a chat assistant without computer access, guide me one step at a time, starting with the first action I need to take.
+
+Before installing, check whether this edition is already working. If its tutor has “Select slides” and “Explain + book”, reuse it. Preserve my study library, chats, settings and local source edits. Use a fresh folder when an existing checkout has changes.
+
+ON A MAC
+1. Use macOS 13 or later. Check Xcode Command Line Tools with xcode-select -p. If missing, run xcode-select --install and let me finish the system dialog. Check Homebrew with brew --version. If missing, use its official setup at https://brew.sh and follow its shell PATH instructions.
+2. Clone https://github.com/kirill-tiukin/slidemate.git into an available folder under ~/Developer, or download and extract the main branch ZIP. From the extracted or cloned project folder, run bash scripts/install.sh --build-only. Wait for a successful build. The resulting app is build/SlideMate.app.
+3. Quit any running SlideMate normally, then open the exact app you built with open "$PWD/build/SlideMate.app" from that project folder. Keep that folder on the Mac. Use this copy on later launches.
+4. In SlideMate setup or Settings choose ChatGPT (Codex). If Codex is missing, install it with brew install --cask codex. Check codex login status. If sign-in is needed, run codex login and let me finish “Sign in with ChatGPT” in my browser using my own account.
+
+ON WINDOWS
+1. Download https://github.com/kirill-tiukin/slidemate/archive/refs/heads/main.zip and use Extract All into a folder I can keep, such as Documents\SlideMate. Open the extracted folder that contains Start SlideMate.cmd.
+2. Double-click Start SlideMate.cmd. From PowerShell in that folder the equivalent is & '.\Start SlideMate.cmd'. The launcher checks for Python, Poppler and Codex and uses WinGet for missing tools. If WinGet is missing, install or update Microsoft's App Installer, then reopen the launcher.
+3. Follow the install prompts. If it asks for a restart of the launcher, close that window and double-click Start SlideMate.cmd again. Let me complete “Sign in with ChatGPT” in my own browser. SlideMate opens at http://127.0.0.1:8767. Keep its console window open while studying. Reopen the same launcher on future study days.
+
+CONNECT THE STUDY FILES ON EITHER COMPUTER
+1. If I supplied the SlideMate Study Kit ZIP, extract it first and keep the folder somewhere permanent. Look in its Materials folder for Lecture slides.pdf (269 pages) and Investment Banking textbook.pdf (332 pages). If the kit is absent, ask where my local PDFs are. They are supplied separately from the public app.
+2. Open the lecture PDF in SlideMate by dragging it onto the app or browser window. Open the book icon in the toolbar, choose “Choose PDF” (or “Change book”), and select the textbook from the permanent folder.
+3. Verify that the lecture viewer shows 269 slides and the textbook viewer shows 332 pages when using the supplied materials. In the tutor, open Select slides, enter 46–50, and click Apply. Confirm that the selection label shows that range. Show me where to click Explain + book for my first question and how to click a [Book p.N] citation to open its source. Clear the sample selection afterwards unless I want to study it now.
+4. Tell me how to launch my installed copy again and which checks succeeded. Leave passwords, account codes and browser sign-in to me.
